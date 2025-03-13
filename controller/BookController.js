@@ -2,36 +2,45 @@ const conn = require('../mariadb');
 const { StatusCodes } = require('http-status-codes');
 
 const allBooks = (req, res) => {
-  const { categoryId } = req.query;
+  const { news, limit, currentPage, categoryId } = req.query;
 
-  if (categoryId) {
-    const sql = 'SELECT * FROM books WHERE category_id = ?';
-    conn.query(sql, categoryId, (err, result) => {
-      if (err) {
-        return res.status(StatusCodes.BAD_REQUEST).end();
-      }
-      if (result.length) {
-        return res.status(StatusCodes.OK).json(result);
-      } else {
-        return res.status(StatusCodes.NOT_FOUND).end();
-      }
-    });
-  } else {
-    const sql = 'SELECT * FROM books';
-    conn.query(sql, (err, result) => {
-      if (err) {
-        return res.status(StatusCodes.BAD_REQUEST).end();
-      }
+  const offset = limit * (currentPage - 1);
+  let sql = 'SELECT * FROM books';
+  let values = [];
 
-      return res.status(StatusCodes.OK).json(result);
-    });
+  if (categoryId && news) {
+    sql +=
+      ' WHERE category_id = ? AND pub_date BETWEEN DATE_SUB(NOW(), INTERVAL 1 MONTH) AND NOW()';
+    values.push(categoryId);
+  } else if (categoryId) {
+    sql += ' WHERE category_id = ?';
+    values.push(categoryId);
+  } else if (news) {
+    sql +=
+      ' WHERE pub_date BETWEEN DATE_SUB(NOW(), INTERVAL 1 MONTH) AND NOW()';
   }
+
+  sql += ' LIMIT ? OFFSET ?';
+  values.push(parseInt(limit), offset);
+
+  conn.query(sql, values, (err, result) => {
+    if (err) {
+      console.log(err);
+      return res.status(StatusCodes.BAD_REQUEST).end();
+    }
+    if (result.length) {
+      return res.status(StatusCodes.OK).json(result);
+    } else {
+      return res.status(StatusCodes.NOT_FOUND).end();
+    }
+  });
 };
 
 const bookDetail = (req, res) => {
   const id = parseInt(req.params.id);
 
-  const sql = 'SELECT * FROM books WHERE id = ?';
+  const sql =
+    'SELECT * FROM books LEFT JOIN categories ON books.category_id = categories.id  WHERE books.id = ?';
   conn.query(sql, id, (err, result) => {
     if (err) {
       console.log(err);
